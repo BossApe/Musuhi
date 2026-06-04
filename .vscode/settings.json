@@ -5,5 +5,6 @@
   "editor.letterSpacing": 0,
   "editor.renderWhitespace": "all",
   "terminal.integrated.fontFamily": "'HackGen Console NF'",
-  "markdown.preview.fontFamily": "'HackGen Console NF'"
+  "markdown.preview.fontFamily": "'HackGen Console NF'",
+  "terminal.integrated.copyOnSelection": true
 }

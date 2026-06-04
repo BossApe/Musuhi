@@ -1,43 +1,48 @@
  
 services:
+  # @@@残作業:Uptime Kumaの追加。docker-composeサービスとprojects配下の死活監視に使用
   scrumblr:
     build:
-      context: /Users/m.nohara/gitspace/Musuhi/services/scrumblr
+      context: ../services/scrumblr
       dockerfile: Dockerfile
       args:
-        REDIS_URL: redis://redis:6379
-    ports:
-      - "13030:8080"
+        REDIS_URL: ${REDIS_URL:-redis://redis:${REDIS_PORT:-6379}}
+        SCRUMBLR_PORT: ${SCRUMBLR_PORT:-8080}
+    ports :
+      - "13030:${SCRUMBLR_PORT:-8080}"
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_URL: redis://redis:6379
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_URL: ${REDIS_URL:-redis://redis:${REDIS_PORT:-6379}}
     depends_on:
       - redis
 
   redis:
     image: redis:7-alpine
     ports:
-      - "16379:6379"
+      - "16379:${REDIS_PORT:-6379}"
     volumes:
       - redis_data:/data
 
   postgres:
     build:
-      context: ../../Musuhi/services/postgres
+      context: ../services/postgres
       dockerfile: Dockerfile
     environment:
-      POSTGRES_USER: musuhi
-      POSTGRES_PASSWORD: musuhi
-      POSTGRES_DB: musuhi
+      POSTGRES_USER: ${POSTGRES_USER:-musuhi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-musuhi}
+      POSTGRES_MUSUHI_DB: ${POSTGRES_MUSUHI_DB:-musuhi}
+      POSTGRES_MUSUHI_SCHEMA: ${POSTGRES_MUSUHI_SCHEMA:-musuhi}
+      POSTGRES_FORGEJO_DB: ${POSTGRES_FORGEJO_DB:-forgejo}
+      POSTGRES_FORGEJO_SCHEMA: ${POSTGRES_FORGEJO_SCHEMA:-forgejo}
     ports:
-      - "15432:5432"
+      - "15432:${POSTGRES_PORT:-5432}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../services/postgres/00_initdb-forgejo.sh:/docker-entrypoint-initdb.d/00_initdb-forgejo.sh:ro
       - ../services/postgres/migrations:/docker-entrypoint-initdb.d/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U musuhi"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_MUSUHI_USER:-musuhi}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -45,7 +50,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     ports:
-      - "11434:11434"
+      - "${OLLAMA_PORT:-11434}:${OLLAMA_PORT:-11434}"
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
@@ -60,31 +65,36 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["/bin/sh", "-lc"]
-    command: >
-      ollama pull qwen2.5:3b-instruct &&
-      ollama pull qwen2.5:7b-instruct
+      OLLAMA_HOST: http://ollama:${OLLAMA_PORT:-11434}
+    entrypoint: ["/bin/sh", "/scripts/ollama-model-pull.sh"]
+    volumes:
+      - ./scripts/ollama-model-pull.sh:/scripts/ollama-model-pull.sh:ro
     restart: "no"
 
   musuhi-api:
     build:
-      context: ../services/musuhi-api/src
-      dockerfile: ../Dockerfile
+      context: ../services/musuhi-api
+      dockerfile: Dockerfile
       args:
-          - DATABASE_URL=postgres://musuhi:musuhi@postgres:5432/musuhi
-          - FORGEJO_URL=${FORGEJO_URL:-http://forgejo:3000}
+          - DATABASE_URL=postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
+          - FORGEJO_URL=${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
+          - MUSUHI_LLM_ENDPOINT=${MUSUHI_LLM_ENDPOINT:-http://ollama:${OLLAMA_PORT:-11434}/v1}
+          - FORGEJO_USER=${FORGEJO_USER:-musuhi}
+          - FORGEJO_PASSWORD=${FORGEJO_PASSWORD:-musuhi}
+          - FORGEJO_EMAIL=${FORGEJO_EMAIL:-musuhi@example.com}
+          - MUSUHI_API_PORT=${MUSUHI_API_PORT:-8080}
     ports:
-      - "18080:8080"
+      - "18080:${MUSUHI_API_PORT:-8080}"
     environment:
-      # @@@残作業:.envファイルを作成し、argsとDockerfileの定義を合わせるUSER/PASSWORK/DB/Token/URLなど。全体見直し
-      DATABASE_URL: postgres://musuhi:musuhi@postgres:5432/musuhi
-      MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://ollama:11434/v1}
-      MUSUHI_LLM_API_KEY: ${MUSUHI_LLM_API_KEY:-}
-      MUSUHI_LLM_PROFILE: ${MUSUHI_LLM_PROFILE:-balanced}
-      MUSUHI_LLM_MODEL_FAST: ${MUSUHI_LLM_MODEL_FAST:-qwen2.5:3b-instruct}
-      MUSUHI_LLM_MODEL_BALANCED: ${MUSUHI_LLM_MODEL_BALANCED:-qwen2.5:3b-instruct}
-      MUSUHI_LLM_MODEL_QUALITY: ${MUSUHI_LLM_MODEL_QUALITY:-qwen2.5:7b-instruct}
+      DATABASE_URL: postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
+      FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
+      FORGEJO_TOKEN_PATH: ${FORGEJO_TOKEN_PATH:-/shared/forgejo_token/token.txt}
+      MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://ollama:${OLLAMA_PORT:-11434}/v1}
+      MUSUHI_LLM_API_KEY: ""
+      MUSUHI_LLM_PROFILE: balanced
+      MUSUHI_LLM_MODEL_FAST: qwen2.5:3b-instruct
+      MUSUHI_LLM_MODEL_BALANCED: qwen2.5:3b-instruct
+      MUSUHI_LLM_MODEL_QUALITY: qwen2.5:7b-instruct
     depends_on:
       forgejo:
         condition: service_healthy
@@ -92,9 +102,11 @@ services:
         condition: service_healthy
       ollama-model-pull:
         condition: service_completed_successfully
+      forgejo-init:
+        condition: service_completed_successfully
     volumes:
       - ../../projects:/app/projects
-      - shared_data:/shared
+      - forgejo_token:/shared/forgejo_token
 
   musuhi-frontend:
     build:
@@ -103,7 +115,7 @@ services:
       args:
         VITE_API_BASE_URL: http://localhost:18080
     ports:
-      # @@@残作業:ポート番号の見直し。3000番はフロントエンドのデフォルト。forgejoとずらす。13000番は仮。全体見直し
+      # @@@残作業:ポート番号の見直し。13000番は仮。全体見直し
       - "13000:3000"
     environment:
       VITE_API_BASE_URL: http://localhost:18080
@@ -113,36 +125,54 @@ services:
 
   forgejo:
     build:
-      context: ../../Musuhi/services/forgejo
+      context: ../services/forgejo
       dockerfile: Dockerfile
     ports:
-      - "13031:3000"   # Web UI
+      - "13031:${FORGEJO_PORT:-3000}"   # Web UI
       - "13032:22"     # SSH (optional)
     environment:
       - USER_UID=1000
       - USER_GID=1000
       - FORGEJO__database__DB_TYPE=postgres
-      - FORGEJO__database__HOST=postgres:5432
-      - FORGEJO__database__NAME=forgejo
-      - FORGEJO__database__USER=musuhi
-      - FORGEJO__database__PASSWD=musuhi
-      - FORGEJO__database__SCHEMA=forgejo
+      - FORGEJO__database__HOST=postgres:${POSTGRES_PORT:-5432}
+      - FORGEJO__database__NAME=${POSTGRES_FORGEJO_DB:-forgejo}
+      - FORGEJO__database__USER=${POSTGRES_USER:-musuhi}
+      - FORGEJO__database__PASSWD=${POSTGRES_PASSWORD:-musuhi}
+      - FORGEJO__database__SCHEMA=${POSTGRES_FORGEJO_SCHEMA:-forgejo}
       - FORGEJO__log__ROOT_PATH=/data/forgejo/log
-      - FORGEJO__INSTALL__LOCK=true
+      - FORGEJO__security__INSTALL_LOCK=true
       # 初回セットアップ画面を有効化
       - FORGEJO__server__DOMAIN=localhost
       - FORGEJO__server__ROOT_URL=http://localhost:13031/
       - FORGEJO__server__SSH_DOMAIN=localhost
       - FORGEJO__server__SSH_PORT=13032
       - FORGEJO_APP_INI=/data/forgejo/conf/app.ini
+      - FORGEJO_TOKEN_PATH=${FORGEJO_TOKEN_PATH:-/shared/forgejo_token/token.txt}
     volumes:
       - forgejo_data:/data
+      - ../services/forgejo/conf/app.ini:/etc/gitea/app.ini
       - ../../services/forgejo/log:/data/forgejo/log
-      - forgejo_token:/shared
+      - forgejo_token:/shared/forgejo_token
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${FORGEJO_PORT:-3000}/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
+  forgejo-init:
+    image: codeberg.org/forgejo/forgejo:15
+    depends_on:
+      forgejo:
+        condition: service_healthy
+    volumes:
+      - forgejo_data:/data
+      - forgejo_token:/shared/forgejo_token
+      - ./scripts/forgejo-init.sh:/scripts/forgejo-init.sh:ro
+    entrypoint: ["/bin/sh", "/scripts/forgejo-init.sh"]
+    restart: "no"
 volumes:
   postgres_data:
   ollama_data:

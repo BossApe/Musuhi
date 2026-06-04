@@ -5,9 +5,4 @@ FROM codeberg.org/forgejo/forgejo:15
 ARG APP_INI_PATH=/data/forgejo/conf/app.ini
 COPY conf/app.ini ${APP_INI_PATH}
 
-# 初期化スクリプトを特定のディレクトリにコピー
-COPY init-admin.sh /etc/templates/init.d/init-admin.sh
-# スクリプトに実行権限を付与
-RUN chmod +x /etc/templates/init.d/init-admin.sh
-
 # デフォルトCMD/ENTRYPOINTは公式イメージのまま
