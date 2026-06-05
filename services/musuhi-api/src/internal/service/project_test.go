@@ -127,13 +127,13 @@ func TestProjectService_InitDirectory_新仕様でprj配下に作成_正常系(t
 	svc := NewProjectService(repo)
 
 	baseDir := t.TempDir()
-	oldBase := "/app/prj"
-	os.Setenv("PRJ_BASE_DIR", baseDir)
-	defer os.Setenv("PRJ_BASE_DIR", oldBase)
+	oldBase := os.Getenv("PROJECTS_BASE_DIR")
+	os.Setenv("PROJECTS_BASE_DIR", baseDir)
+	defer os.Setenv("PROJECTS_BASE_DIR", oldBase)
 
 	projectName := "demo_project"
 	target := filepath.Join(baseDir, projectName)
-	result, err := svc.InitDirectory(context.Background(), projectName)
+	result, err := svc.InitDirectory(context.Background(), projectName, "")
 	assert.NoError(t, err)
 	assert.Equal(t, "success", result.DirectoryStatus)
 
@@ -344,15 +344,15 @@ func TestProjectService_InitDirectory_重複プロジェクト名で作成_異�
 	svc := NewProjectService(repo)
 
 	baseDir := t.TempDir()
-	oldBase := "/app/prj"
-	os.Setenv("PRJ_BASE_DIR", baseDir)
-	defer os.Setenv("PRJ_BASE_DIR", oldBase)
+	oldBase := os.Getenv("PROJECTS_BASE_DIR")
+	os.Setenv("PROJECTS_BASE_DIR", baseDir)
+	defer os.Setenv("PROJECTS_BASE_DIR", oldBase)
 
 	projectName := "dup_project"
 	target := filepath.Join(baseDir, projectName)
 	os.MkdirAll(target, 0o755)
 
-	_, err := svc.InitDirectory(context.Background(), projectName)
+	_, err := svc.InitDirectory(context.Background(), projectName, "")
 	assert.ErrorIs(t, err, ErrValidation)
 }
 
@@ -426,7 +426,8 @@ func TestProjectService_CreateRepositoryWithExternal_Forgejo側でリポジト�
 	)
 
 	_, err := svc.CreateRepositoryWithExternal(context.Background(), "BossApe", "demo-project", "private", tmpDir, "initial commit")
-	assert.ErrorIs(t, err, ErrValidation)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "repository name already exists")
 	git.AssertExpectations(t)
 }
 

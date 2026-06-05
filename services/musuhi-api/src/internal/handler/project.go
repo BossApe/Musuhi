@@ -99,6 +99,17 @@ func (h *ProjectHandler) SetNameSuggestionProfile(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, dataEnvelope{Data: result})
 }
 
+// GetBaseDir は GET /api/v1/projects/base-dir を処理する。
+func (h *ProjectHandler) GetBaseDir(w http.ResponseWriter, r *http.Request) {
+	result, err := h.svc.GetBaseDir(r.Context())
+	if err != nil {
+		handleProjectServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dataEnvelope{Data: result})
+}
+
 // InitDirectory は POST /api/v1/projects/init-directory を処理する。
 func (h *ProjectHandler) InitDirectory(w http.ResponseWriter, r *http.Request) {
 	var req model.InitDirectoryRequest
@@ -107,7 +118,7 @@ func (h *ProjectHandler) InitDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.svc.InitDirectory(r.Context(), req.ProjectName)
+	result, err := h.svc.InitDirectory(r.Context(), req.ProjectName, req.LocalPath)
 	if err != nil {
 		handleProjectServiceError(w, err)
 		return

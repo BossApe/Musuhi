@@ -1,6 +1,8 @@
  
 services:
-  # @@@残作業:Uptime Kumaの追加。docker-composeサービスとprojects配下の死活監視に使用
+  # @TODO:Uptime Kumaの追加。docker-composeサービスとprojects配下の死活監視に使用
+  # @TODO:Headroomの追加。有料モデルを使用する場合のトークン数圧縮に使用
+  # @TODO:Kali Linuxの追加。ペネトレーションテストに使用
   scrumblr:
     build:
       context: ../services/scrumblr

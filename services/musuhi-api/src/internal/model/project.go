@@ -5,6 +5,7 @@ import "github.com/google/uuid"
 // InitDirectoryRequest は初期ディレクトリ作成APIのリクエスト型。
 type InitDirectoryRequest struct {
 	ProjectName string `json:"projectName"`
+	LocalPath   string `json:"localPath,omitempty"`
 }
 
 // ProjectExtraction は機能抽出結果を表す。
@@ -31,6 +32,11 @@ type NameSuggestionProfile struct {
 	Profile           string   `json:"profile"`
 	AvailableProfiles []string `json:"availableProfiles"`
 	Enabled           bool     `json:"enabled"`
+}
+
+// BaseDirConfig はフロント向けベースディレクトリ設定を表す。
+type BaseDirConfig struct {
+	BaseDir string `json:"baseDir"`
 }
 
 // ProjectInitResult は初期ディレクトリ作成結果を表す。

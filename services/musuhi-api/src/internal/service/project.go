@@ -27,7 +27,8 @@ type ProjectService interface {
 	SuggestName(ctx context.Context, overviewID string) (*model.ProjectNameSuggestion, error)
 	GetNameSuggestionProfile(ctx context.Context) (*model.NameSuggestionProfile, error)
 	SetNameSuggestionProfile(ctx context.Context, profile string) (*model.NameSuggestionProfile, error)
-	InitDirectory(ctx context.Context, projectName string) (*model.ProjectInitResult, error)
+	GetBaseDir(ctx context.Context) (*model.BaseDirConfig, error)
+	InitDirectory(ctx context.Context, projectName, localPath string) (*model.ProjectInitResult, error)
 	CreateRepositoryWithExternal(ctx context.Context, owner, repoName, visibility, localPath, commitMessage string) (*model.ProjectWithExternalResult, error)
 	CreateGitHubProjects(ctx context.Context, id, owner, title string) (*model.GitHubProjectsResult, error)
 	CreatePhase0Tasks(ctx context.Context, id, owner, projectsID string) (*model.Phase0TasksResult, error)
@@ -141,20 +142,33 @@ func (s *projectService) SetNameSuggestionProfile(_ context.Context, profile str
 	return &updated, nil
 }
 
-// InitDirectory は prj/{projectName} にプロジェクトの初期ディレクトリ構成を生成します。
-func (s *projectService) InitDirectory(_ context.Context, projectName string) (*model.ProjectInitResult, error) {
+// GetBaseDir は VITE_BASE_DIR の現在値を取得します。
+func (s *projectService) GetBaseDir(_ context.Context) (*model.BaseDirConfig, error) {
+	return &model.BaseDirConfig{BaseDir: os.Getenv("VITE_BASE_DIR")}, nil
+}
+
+// InitDirectory は指定パスにプロジェクトの初期ディレクトリ構成を生成します。
+func (s *projectService) InitDirectory(_ context.Context, projectName, localPath string) (*model.ProjectInitResult, error) {
 	if strings.TrimSpace(projectName) == "" {
 		return nil, fmt.Errorf("%w: projectName is required", ErrValidation)
 	}
 	if !projectNamePattern.MatchString(projectName) {
 		return nil, fmt.Errorf("%w: projectName must match %s", ErrValidation, projectNamePattern.String())
 	}
-	// Musuhi/project/<projectName> 配下に作成
-	baseDir := os.Getenv("PROJECTS_BASE_DIR")
-	if baseDir == "" {
-		baseDir = "/app/projects"
+	localPath = strings.TrimSpace(localPath)
+	var root string
+	if localPath != "" {
+		if !filepath.IsAbs(localPath) {
+			return nil, fmt.Errorf("%w: localPath must be absolute path", ErrValidation)
+		}
+		root = filepath.Clean(localPath)
+	} else {
+		baseDir := os.Getenv("PROJECTS_BASE_DIR")
+		if baseDir == "" {
+			baseDir = "/app/projects"
+		}
+		root = filepath.Join(baseDir, projectName)
 	}
-	root := filepath.Join(baseDir, projectName)
 	// 重複禁止
 	if _, err := os.Stat(root); err == nil {
 		return nil, fmt.Errorf("%w: projectName already exists", ErrValidation)

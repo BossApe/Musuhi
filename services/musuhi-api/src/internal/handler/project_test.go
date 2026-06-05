@@ -53,8 +53,16 @@ func (m *mockProjectService) SetNameSuggestionProfile(ctx context.Context, profi
 	return args.Get(0).(*model.NameSuggestionProfile), args.Error(1)
 }
 
-func (m *mockProjectService) InitDirectory(ctx context.Context, projectName string) (*model.ProjectInitResult, error) {
-	args := m.Called(ctx, projectName)
+func (m *mockProjectService) GetBaseDir(ctx context.Context) (*model.BaseDirConfig, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BaseDirConfig), args.Error(1)
+}
+
+func (m *mockProjectService) InitDirectory(ctx context.Context, projectName, localPath string) (*model.ProjectInitResult, error) {
+	args := m.Called(ctx, projectName, localPath)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -124,11 +132,11 @@ func TestProjectHandler_InitDirectory_新仕様で初期ディレクトリを作
 	svc := new(mockProjectService)
 	h := NewProjectHandler(svc)
 	id := uuid.New()
-	svc.On("InitDirectory", mock.Anything, "demo-project").Return(
+	svc.On("InitDirectory", mock.Anything, "demo-project", "/tmp/demo-project").Return(
 		&model.ProjectInitResult{ID: id, DirectoryStatus: "success"}, nil,
 	)
 
-	body := `{"projectName":"demo-project"}`
+	body := `{"projectName":"demo-project","localPath":"/tmp/demo-project"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/init-directory", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
 
@@ -215,14 +223,35 @@ func TestProjectHandler_SetNameSuggestionProfile_更新する_正常系(t *testi
 	svc.AssertExpectations(t)
 }
 
+func TestProjectHandler_GetBaseDir_現在値を取得する_正常系(t *testing.T) {
+	svc := new(mockProjectService)
+	h := NewProjectHandler(svc)
+	svc.On("GetBaseDir", mock.Anything).Return(
+		&model.BaseDirConfig{BaseDir: "/Users/m.nohara/gitspace"},
+		nil,
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/base-dir", nil)
+	rec := httptest.NewRecorder()
+
+	h.GetBaseDir(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	var resp map[string]any
+	assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	data := resp["data"].(map[string]any)
+	assert.Equal(t, "/Users/m.nohara/gitspace", data["baseDir"])
+	svc.AssertExpectations(t)
+}
+
 func TestProjectHandler_InitDirectory_不正なプロジェクト名で初期ディレクトリを作成する_異常系(t *testing.T) {
 	svc := new(mockProjectService)
 	h := NewProjectHandler(svc)
-	svc.On("InitDirectory", mock.Anything, "bad name!").Return(
+	svc.On("InitDirectory", mock.Anything, "bad name!", "/tmp/bad").Return(
 		nil, fmt.Errorf("%w: projectName must match pattern", service.ErrValidation),
 	)
 
-	body := `{"projectName":"bad name!"}`
+	body := `{"projectName":"bad name!","localPath":"/tmp/bad"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/init-directory", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
 

@@ -8,7 +8,7 @@
 	};
 
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
-	const BASE_DIR = '/Users/m.nohara/gitspace/';
+	const FALLBACK_BASE_DIR = '/app/projects';
 	const initialOverviewId =
 		typeof window !== 'undefined'
 			? (new URLSearchParams(window.location.search).get('overviewId') ?? '')
@@ -18,10 +18,21 @@
 	let localPath = $state('');
 	let localPathEdited = $state(false);
 	let selectedProjectName = $state('');
+	let baseDir = $state(FALLBACK_BASE_DIR);
+
+	function buildLocalPath(base: string, projectName: string): string {
+		const trimmedBase = (base || FALLBACK_BASE_DIR).trim();
+		const normalizedBase = trimmedBase.replace(/\/+$/, '');
+		const trimmedProjectName = projectName.trim();
+		if (!trimmedProjectName) {
+			return normalizedBase;
+		}
+		return `${normalizedBase}/${trimmedProjectName}`;
+	}
 
 	$effect(() => {
 		if (!localPathEdited && selectedProjectName) {
-			localPath = BASE_DIR + selectedProjectName;
+			localPath = buildLocalPath(baseDir, selectedProjectName);
 		}
 	});
 	let features = $state<string[]>([]);
@@ -55,6 +66,7 @@
 			const params = new URLSearchParams(window.location.search);
 			overviewId = params.get('overviewId') ?? '';
 		}
+		void loadBaseDir();
 		void loadNameSuggestionProfile();
 	});
 
@@ -111,6 +123,18 @@
 		}
 	}
 
+	async function loadBaseDir() {
+		try {
+			const result = await getJson('/api/v1/projects/base-dir');
+			const resolved = result.data?.baseDir;
+			if (typeof resolved === 'string' && resolved.trim()) {
+				baseDir = resolved.trim();
+			}
+		} catch {
+			baseDir = FALLBACK_BASE_DIR;
+		}
+	}
+
 	async function handleProfileChange(event: Event) {
 		const next = (event.currentTarget as HTMLSelectElement).value;
 		if (!profileEnabled || !next || next === modelProfile) {
@@ -162,7 +186,8 @@
 		isLoading = true;
 		try {
 			const result = await postJson('/api/v1/projects/init-directory', {
-				projectName: selectedProjectName
+				projectName: selectedProjectName,
+				localPath: localPath.trim()
 			});
 			directoryStatus = result.data?.directoryStatus ?? 'success';
 		} catch (e) {
@@ -234,6 +259,14 @@
 			{/if}
 
 			<label for="localPath">ローカル作成先パス（絶対パス）</label>
+			<input
+				id="localPath"
+				bind:value={localPath}
+				oninput={() => {
+					localPathEdited = true;
+				}}
+				placeholder="/path/to/projects/your-project"
+			/>
 
 			<button onclick={handleInitDirectory} disabled={isLoading || !selectedProjectName || !localPath.trim()}>
 				{isLoading ? '作成中...' : '初期ディレクトリ作成'}

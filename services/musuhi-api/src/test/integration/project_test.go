@@ -56,8 +56,16 @@ func (m *mockProjectService) SetNameSuggestionProfile(ctx context.Context, profi
 	return args.Get(0).(*model.NameSuggestionProfile), args.Error(1)
 }
 
-func (m *mockProjectService) InitDirectory(ctx context.Context, projectName string) (*model.ProjectInitResult, error) {
-	args := m.Called(ctx, projectName)
+func (m *mockProjectService) GetBaseDir(ctx context.Context) (*model.BaseDirConfig, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BaseDirConfig), args.Error(1)
+}
+
+func (m *mockProjectService) InitDirectory(ctx context.Context, projectName, localPath string) (*model.ProjectInitResult, error) {
+	args := m.Called(ctx, projectName, localPath)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -95,6 +103,7 @@ func newProjectTestServer(svc service.ProjectService) *httptest.Server {
 	mux.HandleFunc("POST /api/v1/projects/suggest-name", ph.SuggestName)
 	mux.HandleFunc("GET /api/v1/projects/name-suggestion-profile", ph.GetNameSuggestionProfile)
 	mux.HandleFunc("PUT /api/v1/projects/name-suggestion-profile", ph.SetNameSuggestionProfile)
+	mux.HandleFunc("GET /api/v1/projects/base-dir", ph.GetBaseDir)
 	mux.HandleFunc("POST /api/v1/projects/init-directory", ph.InitDirectory)
 	mux.HandleFunc("POST /api/v1/projects/with-external", ph.WithExternal)
 	mux.HandleFunc("POST /api/v1/projects/{id}/github-projects", ph.GitHubProjects)
@@ -331,13 +340,13 @@ func TestIntegration_SetNameSuggestionProfile_プロファイルを更新する_
 func TestIntegration_InitDirectory_新仕様で初期ディレクトリを作成する_正常系(t *testing.T) {
 	svc := new(mockProjectService)
 	id := uuid.New()
-	svc.On("InitDirectory", mock.Anything, "demo-project").Return(
+	svc.On("InitDirectory", mock.Anything, "demo-project", "/tmp/demo-project").Return(
 		&model.ProjectInitResult{ID: id, DirectoryStatus: "success"}, nil,
 	)
 	srv := newProjectTestServer(svc)
 	defer srv.Close()
 
-	body := `{"projectName":"demo-project"}`
+	body := `{"projectName":"demo-project","localPath":"/tmp/demo-project"}`
 	res, err := http.Post(srv.URL+"/api/v1/projects/init-directory", "application/json", bytes.NewBufferString(body))
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -352,13 +361,13 @@ func TestIntegration_InitDirectory_新仕様で初期ディレクトリを作成
 
 func TestIntegration_InitDirectory_不正なプロジェクト名で初期ディレクトリを作成する_異常系(t *testing.T) {
 	svc := new(mockProjectService)
-	svc.On("InitDirectory", mock.Anything, "bad name!").Return(
+	svc.On("InitDirectory", mock.Anything, "bad name!", "/tmp/bad").Return(
 		nil, fmt.Errorf("%w: projectName must match pattern", service.ErrValidation),
 	)
 	srv := newProjectTestServer(svc)
 	defer srv.Close()
 
-	body := `{"projectName":"bad name!"}`
+	body := `{"projectName":"bad name!","localPath":"/tmp/bad"}`
 	res, err := http.Post(srv.URL+"/api/v1/projects/init-directory", "application/json", bytes.NewBufferString(body))
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusUnprocessableEntity, res.StatusCode)

@@ -60,6 +60,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/projects/suggest-name", projectHandler.SuggestName)
 	mux.HandleFunc("GET /api/v1/projects/name-suggestion-profile", projectHandler.GetNameSuggestionProfile)
 	mux.HandleFunc("PUT /api/v1/projects/name-suggestion-profile", projectHandler.SetNameSuggestionProfile)
+	mux.HandleFunc("GET /api/v1/projects/base-dir", projectHandler.GetBaseDir)
 	mux.HandleFunc("POST /api/v1/projects/init-directory", projectHandler.InitDirectory)
 	mux.HandleFunc("POST /api/v1/projects/with-external", projectHandler.WithExternal)
 	mux.HandleFunc("POST /api/v1/projects/{id}/github-projects", projectHandler.GitHubProjects)
