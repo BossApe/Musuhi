@@ -84,7 +84,7 @@ services:
           - FORGEJO_EMAIL=${FORGEJO_EMAIL:-musuhi@example.com}
           - MUSUHI_API_PORT=${MUSUHI_API_PORT:-8080}
     ports:
-      - "18080:${MUSUHI_API_PORT:-8080}"
+      - "${MUSUHI_API_HOSTSIDE_PORT:-18080}:${MUSUHI_API_PORT:-8080}"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
       FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
@@ -113,13 +113,12 @@ services:
       context: ../services/musuhi-frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://localhost:18080
+        VITE_API_BASE_URL: http://localhost:${MUSUHI_API_HOSTSIDE_PORT:-18080}
     ports:
-      # @@@残作業:ポート番号の見直し。13000番は仮。全体見直し
-      - "13000:3000"
+      - "13000:${MUSUHI_FRONTEND_PORT:-3000}"
     environment:
-      VITE_API_BASE_URL: http://localhost:18080
-      PORT: 3000
+      VITE_API_BASE_URL: http://localhost:${MUSUHI_API_HOSTSIDE_PORT:-18080}
+      PORT: ${MUSUHI_FRONTEND_PORT:-3000}
     depends_on:
       - musuhi-api
 

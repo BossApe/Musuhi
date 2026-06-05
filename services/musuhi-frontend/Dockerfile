@@ -6,7 +6,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
-EXPOSE 3000
+ARG PORT=3000
+EXPOSE ${PORT}
+ENV PORT=${PORT}
 ENV NODE_ENV=production
-ENV PORT=3000
 CMD ["sh", "-c", "npm run preview -- --host 0.0.0.0 --port $PORT"]
