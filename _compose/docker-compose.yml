@@ -1,5 +1,8 @@
  
 services:
+  # @TODO:Code Serverの追加。VSCodeベースのWeb IDE。プロジェクトのコード編集に使用
+  #. 特徴: VSCodeベースのWeb IDE。プロジェクトのコード編集に使用。GitHub Codespacesと同様の操作感で、ブラウザ上で快適にコード編集が可能です。
+  #. 参考: https://qiita.com/plumchang/items/2229bda056d0f1ef3434
   # @TODO:Uptime Kumaの追加。docker-composeサービスとprojects配下の死活監視に使用
   # @TODO:Headroomの追加。有料モデルを使用する場合のトークン数圧縮に使用
   # @TODO:Kali Linuxの追加。ペネトレーションテストに使用
@@ -73,6 +76,52 @@ services:
       - ./scripts/ollama-model-pull.sh:/scripts/ollama-model-pull.sh:ro
     restart: "no"
 
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    ports:
+      - "${LITELLM_HOST_PORT:-14000}:4000"
+    volumes:
+      - ./scripts/litellm/config.yaml:/app/config.yaml:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:4000/health', timeout=3).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Hermes Agent。AIエージェント管理ツール。タスク管理やエージェントのモニタリングに使用
+  #. 特徴: AIエージェント管理ツール。タスク管理やエージェントのモニタリングに使用。複数のAIエージェントを一元管理でき、タスクの進行状況やエージェントのパフォーマンスをリアルタイムで監視できます。
+  #. 参考: https://hermesagent.com/
+  #.      https://qiita.com/kai_kou/items/c4ba4c6dfd0342634a78
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    ports:
+      - "${HERMES_HOST_PORT:-18642}:8642"
+      - "${HERMES_DASHBOARD_HOST_PORT:-19119}:9119"
+    environment:
+      HERMES_DASHBOARD: 1
+      # HERMES_UID / HERMES_GID はホストUID/GIDに合わせたい場合のみ指定する
+      # HERMES_UID: ${HERMES_UID:-}
+      # HERMES_GID: ${HERMES_GID:-}
+    volumes:
+      - hermes_data:/opt/data
+      - ./scripts/hermes/config.yaml:/opt/data/config.yaml:ro
+    depends_on:
+      litellm:
+        condition: service_healthy
+
   musuhi-api:
     build:
       context: ../services/musuhi-api
@@ -80,7 +129,7 @@ services:
       args:
           - DATABASE_URL=postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
           - FORGEJO_URL=${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
-          - MUSUHI_LLM_ENDPOINT=${MUSUHI_LLM_ENDPOINT:-http://ollama:${OLLAMA_PORT:-11434}/v1}
+          - MUSUHI_LLM_ENDPOINT=${MUSUHI_LLM_ENDPOINT:-http://litellm:4000/v1}
           - FORGEJO_USER=${FORGEJO_USER:-musuhi}
           - FORGEJO_PASSWORD=${FORGEJO_PASSWORD:-musuhi}
           - FORGEJO_EMAIL=${FORGEJO_EMAIL:-musuhi@example.com}
@@ -91,7 +140,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
       FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
       FORGEJO_TOKEN_PATH: ${FORGEJO_TOKEN_PATH:-/shared/forgejo_token/token.txt}
-      MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://ollama:${OLLAMA_PORT:-11434}/v1}
+      MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://litellm:4000/v1}
       MUSUHI_LLM_API_KEY: ""
       MUSUHI_LLM_PROFILE: balanced
       MUSUHI_LLM_MODEL_FAST: qwen2.5:3b-instruct
@@ -178,5 +227,6 @@ volumes:
   postgres_data:
   ollama_data:
   redis_data:
+  hermes_data:
   forgejo_data:
   forgejo_token:

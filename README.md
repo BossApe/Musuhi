@@ -65,9 +65,9 @@ Musuhi では、課金なしで試しやすい構成として次の3案があり
 
 ### Musuhi の標準ローカル設定
 
-現在の compose は Ollama を同梱し、Musuhi API の既定 LLM をローカル推論へ向けています。
+現在の compose は Ollama と LiteLLM を同梱し、Musuhi API の既定 LLM を LiteLLM 経由でローカル推論へ向けています。
 
-- `MUSUHI_LLM_ENDPOINT=http://ollama:11434/v1`
+- `MUSUHI_LLM_ENDPOINT=http://litellm:4000/v1`
 - `MUSUHI_LLM_API_KEY` は空で可
 - `MUSUHI_LLM_MODEL_FAST=qwen2.5:3b-instruct`
 - `MUSUHI_LLM_MODEL_BALANCED=qwen2.5:3b-instruct`
