@@ -28,11 +28,20 @@ fi
 
 printf '%s\n' "Generating access token..."
 TOKEN_DIR="/shared/forgejo_token"
+TOKEN_FILE="$TOKEN_DIR/token.txt"
 mkdir -p "$TOKEN_DIR"
+
+# Re-run safe: keep existing usable token instead of failing on duplicate name.
+if [ -s "$TOKEN_FILE" ]; then
+  printf '%s\n' "Token file already exists. Skip generation: $TOKEN_FILE"
+  exit 0
+fi
+
+TOKEN_NAME="musuhi-api-token-$(date +%s)"
 $GITEA admin user generate-access-token \
   --username "$USER_NAME" \
-  --token-name musuhi-api-token \
+  --token-name "$TOKEN_NAME" \
   --scopes all \
   --raw \
-  --config "$APP_INI" > "$TOKEN_DIR/token.txt"
-printf '%s\n' "Token saved to $TOKEN_DIR/token.txt"
+  --config "$APP_INI" > "$TOKEN_FILE"
+printf '%s\n' "Token saved to $TOKEN_FILE"

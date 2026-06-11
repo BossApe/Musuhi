@@ -1,29 +1,31 @@
  
 services:
   # @TODO:Code Serverの追加。VSCodeベースのWeb IDE。プロジェクトのコード編集に使用
-  #. 特徴: VSCodeベースのWeb IDE。プロジェクトのコード編集に使用。GitHub Codespacesと同様の操作感で、ブラウザ上で快適にコード編集が可能です。
+  #. 特徴: プロジェクトのコード編集に使用。GitHub Codespacesと同様の操作感で、ブラウザ上で快適にコード編集が可能。
   #. 参考: https://qiita.com/plumchang/items/2229bda056d0f1ef3434
   # @TODO:Uptime Kumaの追加。docker-composeサービスとprojects配下の死活監視に使用
   # @TODO:Headroomの追加。有料モデルを使用する場合のトークン数圧縮に使用
   # @TODO:Kali Linuxの追加。ペネトレーションテストに使用
-  scrumblr:
-    build:
-      context: ../services/scrumblr
-      dockerfile: Dockerfile
-      args:
-        REDIS_URL: ${REDIS_URL:-redis://redis:${REDIS_PORT:-6379}}
-        SCRUMBLR_PORT: ${SCRUMBLR_PORT:-8080}
-    ports :
-      - "13030:${SCRUMBLR_PORT:-8080}"
-    environment:
-      REDIS_HOST: redis
-      REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_URL: ${REDIS_URL:-redis://redis:${REDIS_PORT:-6379}}
-    depends_on:
-      - redis
+  #scrumblr:
+  #  build:
+  #    context: ../services/scrumblr
+  #    dockerfile: Dockerfile
+  #    args:
+  #      REDIS_URL: ${REDIS_URL:-redis://redis:${REDIS_PORT:-6379}}
+  #      SCRUMBLR_PORT: ${SCRUMBLR_PORT:-8080}
+  #  container_name: scrumblr
+  #  ports :
+  #    - "13030:${SCRUMBLR_PORT:-8080}"
+  #  environment:
+  #    REDIS_HOST: redis
+  #    REDIS_PORT: ${REDIS_PORT:-6379}
+  #    REDIS_URL: ${REDIS_URL:-redis://redis:${REDIS_PORT:-6379}}
+  #  depends_on:
+  #    - redis
 
   redis:
     image: redis:7-alpine
+    container_name: redis
     ports:
       - "16379:${REDIS_PORT:-6379}"
     volumes:
@@ -33,6 +35,7 @@ services:
     build:
       context: ../services/postgres
       dockerfile: Dockerfile
+    container_name: postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-musuhi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-musuhi}
@@ -52,10 +55,17 @@ services:
       timeout: 5s
       retries: 5
 
+  # Ollama。LLM管理プラットフォーム。LLMのホスティングとAPI提供に使用
+  #. 特徴: OSSのLLMのホスティングとAPI提供に使用。複数のLLMを同時に管理でき、APIベースでアクセス可能。軽量で高速なLLMサーバーで、複数のLLMを同時に管理でき、APIベースでアクセス可能。
   ollama:
     image: ollama/ollama:latest
+    container_name: ollama
     ports:
       - "${OLLAMA_PORT:-11434}:${OLLAMA_PORT:-11434}"
+    environment:
+      # Bind on all interfaces so sibling containers can reach ollama via service DNS.
+      OLLAMA_HOST: 0.0.0.0:${OLLAMA_PORT:-11434}
+      OLLAMA_PORT: ${OLLAMA_PORT:-11434}
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
@@ -66,6 +76,7 @@ services:
 
   ollama-model-pull:
     image: ollama/ollama:latest
+    container_name: ollama-model-pull
     depends_on:
       ollama:
         condition: service_healthy
@@ -76,13 +87,18 @@ services:
       - ./scripts/ollama-model-pull.sh:/scripts/ollama-model-pull.sh:ro
     restart: "no"
 
+  # litellm。軽量LLMサーバー。LLMのAPIエンドポイントを提供
+  #. 複数のLLMを同時に管理でき、APIベースでアクセス可能。軽量で高速なLLMサーバーで、複数のLLMを同時に管理でき、APIベースでアクセス可能。Hermes AgentやMusuhi APIからのLLMリクエストを処理する。
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
-    command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    container_name: litellm
+    command: ["--config", "/app/config.yaml", "--port", "${LITELLM_PORT:-4000}", "--host", "0.0.0.0"]
     ports:
-      - "${LITELLM_HOST_PORT:-14000}:4000"
+      - "${LITELLM_HOST_PORT:-14000}:${LITELLM_PORT:-4000}"
     volumes:
-      - ./scripts/litellm/config.yaml:/app/config.yaml:ro
+      - ../services/litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      OLLAMA_PORT: ${OLLAMA_PORT:-11434}
     depends_on:
       ollama:
         condition: service_healthy
@@ -92,32 +108,41 @@ services:
           "CMD",
           "python3",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:4000/health', timeout=3).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:${LITELLM_PORT:-4000}/health', timeout=3).read()",
         ]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # Hermes Agent。AIエージェント管理ツール。タスク管理やエージェントのモニタリングに使用
-  #. 特徴: AIエージェント管理ツール。タスク管理やエージェントのモニタリングに使用。複数のAIエージェントを一元管理でき、タスクの進行状況やエージェントのパフォーマンスをリアルタイムで監視できます。
+  #. 複数のAIエージェントを一元管理でき、タスクの進行状況やエージェントのパフォーマンスをリアルタイムで監視できる。
   #. 参考: https://hermesagent.com/
   #.      https://qiita.com/kai_kou/items/c4ba4c6dfd0342634a78
   hermes:
-    image: nousresearch/hermes-agent:latest
+    build:
+      context: ../services/hermes
+      dockerfile: Dockerfile
+      args:
+        LITELLM_PORT: ${LITELLM_PORT:-4000}
     container_name: hermes
     restart: unless-stopped
-    command: gateway run
     ports:
-      - "${HERMES_HOST_PORT:-18642}:8642"
-      - "${HERMES_DASHBOARD_HOST_PORT:-19119}:9119"
+      - "${HERMES_HOST_PORT:-18642}:${HERMES_PORT:-8642}"
+      - "${HERMES_DASHBOARD_HOST_PORT:-19119}:${HERMES_DASHBOARD_PORT:-9119}"
     environment:
+      HERMES_PORT: ${HERMES_PORT:-8642}
+      HERMES_LANGUAGE: ja
       HERMES_DASHBOARD: 1
+      HERMES_DASHBOARD_HOST: ${HERMES_DASHBOARD_HOST:-0.0.0.0}
+      HERMES_DASHBOARD_PORT: ${HERMES_DASHBOARD_PORT:-9119}
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: ${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-musuhi}
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-musuhi}
+      HERMES_DASHBOARD_BASIC_AUTH_SECRET: ${HERMES_DASHBOARD_BASIC_AUTH_SECRET:-MUSUHI_DASH_SECRET_20260608_ROTATED}
       # HERMES_UID / HERMES_GID はホストUID/GIDに合わせたい場合のみ指定する
       # HERMES_UID: ${HERMES_UID:-}
       # HERMES_GID: ${HERMES_GID:-}
     volumes:
-      - hermes_data:/opt/data
-      - ./scripts/hermes/config.yaml:/opt/data/config.yaml:ro
+      - hermes_data:/root/.hermes
     depends_on:
       litellm:
         condition: service_healthy
@@ -129,18 +154,19 @@ services:
       args:
           - DATABASE_URL=postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
           - FORGEJO_URL=${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
-          - MUSUHI_LLM_ENDPOINT=${MUSUHI_LLM_ENDPOINT:-http://litellm:4000/v1}
+          - MUSUHI_LLM_ENDPOINT=${MUSUHI_LLM_ENDPOINT:-http://litellm:${LITELLM_PORT:-4000}/v1}
           - FORGEJO_USER=${FORGEJO_USER:-musuhi}
           - FORGEJO_PASSWORD=${FORGEJO_PASSWORD:-musuhi}
           - FORGEJO_EMAIL=${FORGEJO_EMAIL:-musuhi@example.com}
           - MUSUHI_API_PORT=${MUSUHI_API_PORT:-8080}
+    container_name: musuhi-api
     ports:
       - "${MUSUHI_API_HOSTSIDE_PORT:-18080}:${MUSUHI_API_PORT:-8080}"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-musuhi}:${POSTGRES_PASSWORD:-musuhi}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_MUSUHI_DB:-musuhi}
       FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:${FORGEJO_PORT:-3000}}
       FORGEJO_TOKEN_PATH: ${FORGEJO_TOKEN_PATH:-/shared/forgejo_token/token.txt}
-      MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://litellm:4000/v1}
+      MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://litellm:${LITELLM_PORT:-4000}/v1}
       MUSUHI_LLM_API_KEY: ""
       MUSUHI_LLM_PROFILE: balanced
       MUSUHI_LLM_MODEL_FAST: qwen2.5:3b-instruct
@@ -165,6 +191,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: http://localhost:${MUSUHI_API_HOSTSIDE_PORT:-18080}
+    container_name: musuhi-frontend
     ports:
       - "13000:${MUSUHI_FRONTEND_PORT:-3000}"
     environment:
@@ -177,6 +204,7 @@ services:
     build:
       context: ../services/forgejo
       dockerfile: Dockerfile
+    container_name: forgejo
     ports:
       - "13031:${FORGEJO_PORT:-3000}"   # Web UI
       - "13032:22"     # SSH (optional)
@@ -214,6 +242,7 @@ services:
 
   forgejo-init:
     image: codeberg.org/forgejo/forgejo:15
+    container_name: forgejo-init
     depends_on:
       forgejo:
         condition: service_healthy
@@ -223,6 +252,7 @@ services:
       - ./scripts/forgejo-init.sh:/scripts/forgejo-init.sh:ro
     entrypoint: ["/bin/sh", "/scripts/forgejo-init.sh"]
     restart: "no"
+
 volumes:
   postgres_data:
   ollama_data:

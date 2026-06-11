@@ -1,0 +1,8 @@
+model:
+  provider: custom
+  default: hermes-default
+  base_url: http://litellm:${LITELLM_PORT:-4000}/v1
+  api_key: "dummy"
+
+display:
+  language: ja

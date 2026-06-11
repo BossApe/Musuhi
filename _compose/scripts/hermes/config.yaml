@@ -1,5 +1,0 @@
-model:
-  provider: custom
-  model: hermes-default
-  base_url: http://litellm:4000/v1
-  api_key: "none"

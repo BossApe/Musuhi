@@ -1,6 +1,35 @@
 #!/bin/sh
 set -eu
 
+wait_for_ollama() {
+	max_retry="${1:-30}"
+	count=0
+	until ollama list >/dev/null 2>&1; do
+		count=$((count + 1))
+		if [ "$count" -ge "$max_retry" ]; then
+			printf '%s\n' "ERROR: ollama is not reachable after ${max_retry} attempts"
+			return 1
+		fi
+		printf '%s\n' "Waiting for ollama... (${count}/${max_retry})"
+		sleep 2
+	done
+}
+
+pull_with_retry() {
+	model_name="$1"
+	max_retry="${2:-5}"
+	count=0
+	until ollama pull "$model_name"; do
+		count=$((count + 1))
+		if [ "$count" -ge "$max_retry" ]; then
+			printf '%s\n' "ERROR: failed to pull model after ${max_retry} attempts: $model_name"
+			return 1
+		fi
+		printf '%s\n' "Retry pull model: $model_name (${count}/${max_retry})"
+		sleep 3
+	done
+}
+
 has_model() {
 	model_name="$1"
 	ollama list | awk 'NR>1 {print $1}' | grep -Fx "$model_name" >/dev/null 2>&1
@@ -12,7 +41,7 @@ pull_if_missing() {
 		printf '%s\n' "Model already exists. Skip pull: $model_name"
 	else
 		printf '%s\n' "Pulling model: $model_name"
-		ollama pull "$model_name"
+		pull_with_retry "$model_name"
 	fi
 }
 
@@ -34,5 +63,6 @@ pull_if_missing() {
 #. 特徴: 非常に軽量ながら高解像度画像の認識に強いモデル。PCのスペックが限られている環境で、図表の細かい文字を読み取らせたい場合に重宝します。
 
 
+wait_for_ollama
 pull_if_missing "qwen2.5:3b-instruct"
 pull_if_missing "qwen2.5:7b-instruct"
