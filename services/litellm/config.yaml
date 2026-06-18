@@ -4,3 +4,18 @@ model_list:
       model: ollama/llama3.3:70b
       api_base: http://ollama:11434
       api_key: "none"
+  - model_name: musuhi-fast
+    litellm_params:
+      model: ollama/llama3.3:70b
+      api_base: http://ollama:11434
+      api_key: "none"
+  - model_name: musuhi-balanced
+    litellm_params:
+      model: ollama/deepseek-r1:70b
+      api_base: http://ollama:11434
+      api_key: "none"
+  - model_name: musuhi-quality
+    litellm_params:
+      model: ollama/deepseek-r1:70b
+      api_base: http://ollama:11434
+      api_key: "none"

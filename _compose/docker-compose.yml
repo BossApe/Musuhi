@@ -108,11 +108,12 @@ services:
           "CMD",
           "python3",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:${LITELLM_PORT:-4000}/health', timeout=3).read()",
+          "import os, socket; p=int(os.getenv('LITELLM_PORT','4000')); s=socket.create_connection(('127.0.0.1', p), 5); s.close()",
         ]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 15s
+      retries: 10
+      start_period: 60s
 
   # Hermes Agent。AIエージェント管理ツール。タスク管理やエージェントのモニタリングに使用
   #. 複数のAIエージェントを一元管理でき、タスクの進行状況やエージェントのパフォーマンスをリアルタイムで監視できる。
@@ -169,9 +170,9 @@ services:
       MUSUHI_LLM_ENDPOINT: ${MUSUHI_LLM_ENDPOINT:-http://litellm:${LITELLM_PORT:-4000}/v1}
       MUSUHI_LLM_API_KEY: ""
       MUSUHI_LLM_PROFILE: balanced
-      MUSUHI_LLM_MODEL_FAST: qwen2.5:3b-instruct
-      MUSUHI_LLM_MODEL_BALANCED: qwen2.5:3b-instruct
-      MUSUHI_LLM_MODEL_QUALITY: qwen2.5:7b-instruct
+      MUSUHI_LLM_MODEL_FAST: musuhi-fast
+      MUSUHI_LLM_MODEL_BALANCED: musuhi-balanced
+      MUSUHI_LLM_MODEL_QUALITY: musuhi-quality
     depends_on:
       forgejo:
         condition: service_healthy

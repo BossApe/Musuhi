@@ -18,12 +18,12 @@ pull_if_missing() {
 
 # 運用方針（2026-06）
 # - ドキュメント生成: Llama 3.3 70B
-# - コーディング支援: DeepSeek-Coder-V2 236B
-# - 画像生成: FLUX.2 Klein 9B
+# - コーディング支援: DeepSeek-R1 70B
+# - 画像生成: FLUX.2 Klein
 #
 # このスクリプトは上記3モデルのみを対象にし、未取得時のみ pull します。
 
 
 pull_if_missing "llama3.3:70b"
-pull_if_missing "deepseek-coder-v2:236b"
-pull_if_missing "flux.2:9b"
+pull_if_missing "deepseek-r1:70b"
+pull_if_missing "x/flux2-klein"
